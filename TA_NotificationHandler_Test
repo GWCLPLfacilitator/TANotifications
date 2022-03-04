@@ -1,0 +1,236 @@
+/*
+*
+* Created 22-12-2021 Ankit Dixit
+*
+* Test class for TA_NotificationHandler
+*
+* Methods:
+*
+* NotificationHandlerMethod - This method is created to insert User,Account,Opportunity,Group records.
+* testNotificationMethod - Records that are created in a test setup method are available to all test methods in the test class and are rolled back at the end of test class execution.
+*
+*/
+
+
+@isTest(SeeAllData=false)
+
+private class TA_NotificationHandler_Test {
+    
+    @testSetUp
+    
+    static void NotificationHandlerMethod()
+    {
+        
+        // Create User records
+        
+        User u = new User(
+            ProfileId = [SELECT Id FROM Profile WHERE Name = 'SYSTEM ADMINISTRATOR'].Id,
+            LastName = 'last',
+            Email = 'Test@email.com',
+            Username = 'Test@email.com' + System.currentTimeMillis(),
+            CompanyName = 'TEST',
+            TA_Notification_Type__c = 'Both',
+            Title = 'title',
+            Alias = 'alias',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US'
+            //UserRoleId = r.Id
+        );
+        insert u; 
+        
+        // Create User records
+        
+        User u1 = new User(
+            ProfileId = [SELECT Id FROM Profile WHERE Name = 'SYSTEM ADMINISTRATOR'].Id,
+            LastName = 'last',
+            Email = 'Test@email1.com',
+            Username = 'Test@email1.com' + System.currentTimeMillis(),
+            CompanyName = 'TEST',
+            TA_Notification_Type__c = 'Bell Notification',
+            Title = 'title',
+            Alias = 'alias',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US'
+            //UserRoleId = r.Id
+        );
+        insert u1;
+        
+        // Create User records
+        
+        User u2 = new User(
+            ProfileId = [SELECT Id FROM Profile WHERE Name = 'SYSTEM ADMINISTRATOR'].Id,
+            LastName = 'last',
+            Email = 'Test@email2.com',
+            Username = 'Test@email2.com' + System.currentTimeMillis(),
+            CompanyName = 'TEST',
+            TA_Notification_Type__c = 'Email Notification',
+            Title = 'title',
+            Alias = 'alias',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US',
+            LocaleSidKey = 'en_US'
+            //UserRoleId = r.Id
+        );
+        insert u2;
+        
+        
+        
+        // Create Account records
+        
+        Account acc = new Account();
+        acc.Name = 'Test Account';
+        acc.BillingCity='test city';
+        acc.BillingCountry ='test country';
+        acc.BillingState='test';
+        acc.BillingStreet='test street';
+        acc.BillingPostalCode='test code';
+        acc.BillingCountry='NY';
+        insert acc; 
+        
+        // Query for the Opportunity record types
+        
+        List<RecordType> otypes = [Select Name, Id From RecordType where sObjectType='Opportunity' and isActive=true];
+        
+        
+        // Create a map between the Record Type Name and Id for easy retrieval
+        
+        Map<String,String> oppRecordTypes = new Map<String,String>{};
+        for(RecordType ot: otypes)
+        {
+            oppRecordTypes.put(ot.Name,ot.Id);
+        }
+        
+        // Create records for Opportunity object
+        
+        Opportunity Opp = new Opportunity();        
+        Opp.Name = 'Opportunity1';
+        Opp.StageName = 'Qualification/Prospecting';
+        Opp.OpportunityTypes__c = 'Diesel';
+        Opp.CloseDate = System.today()+10;
+        Opp.AccountId = Acc.Id;
+        Opp.RecordTypeId = oppRecordTypes.get('Tire Sales Opportunity');
+        insert Opp;
+        
+        // Create records for Group object
+        
+        Group grp = new Group(Type='Queue', Name='Credit Team',Email=u2.Email);
+        insert grp;
+        
+       
+        
+        // Create records for Group Member object
+        System.runAs(new User(Id=UserInfo.getUserId()))
+        {
+           List<GroupMember> groupMemberList = new List<GroupMember>();
+            GroupMember grpmember = new GroupMember(UserOrGroupId = u.Id, GroupId = grp.Id );
+            GroupMember grpmember1 = new GroupMember(UserOrGroupId = u1.Id, GroupId = grp.Id );
+            GroupMember grpmember2 = new GroupMember(UserOrGroupId = u2.Id, GroupId = grp.Id );
+            
+            groupMemberList.add(grpmember);
+            groupMemberList.add(grpmember1);
+            groupMemberList.add(grpmember2);
+            
+            insert groupMemberList;
+        }
+        
+        
+    }
+    
+    @istest
+    static void testNotificationMethodUser()
+        
+    {
+        
+        Test.startTest(); 
+        
+        List<String> userIdList = new List<String>();
+        for(User userRec : [SELECT Id,TA_Notification_Type__c,Email,Name from User where TA_Notification_Type__c = 'Both' OR TA_Notification_Type__c = 'Bell Notification' OR TA_Notification_Type__c = 'Email Notification'])
+        {
+            userIdList.add(userRec.Id);
+        }
+        
+        
+        
+        
+        List<Opportunity> oppty = new List<Opportunity>([SELECT Id,OpportunityTypes__c,StageName from Opportunity where Name = 'Opportunity1']);
+        
+        List<TA_NotificationHandler.FlowInputs> input = new List<TA_NotificationHandler.FlowInputs>();
+        
+        TA_NotificationHandler.FlowInputs request = new TA_NotificationHandler.FlowInputs();
+        
+        request.whatid = oppty[0].Id;
+        request.bellTitle = 'Test';
+        request.bellBody = 'Test Body';
+        request.contextType = 'PREQUAL_SUBMITTED';
+        request.ownerid = userIdList[0];
+        request.ownerType = 'USER';
+        input.add(request);
+        
+        TA_NotificationHandler.sendNotification(input);
+        
+        request.whatid = oppty[0].Id;
+        request.bellTitle = 'Test';
+        request.bellBody = 'Test Body';
+        request.contextType = 'PREQUAL_APPROVED';
+        request.ownerid = userIdList[1];
+        request.ownerType = 'USER';
+        input.add(request);
+        
+        TA_NotificationHandler.sendNotification(input);
+        
+        request.whatid = oppty[0].Id;
+        request.bellTitle = 'Test';
+        request.bellBody = 'Test Body';
+        request.contextType = 'PREQUAL_REJECTED';
+        request.ownerid = userIdList[2];
+        request.ownerType = 'USER';
+        input.add(request);
+        
+        TA_NotificationHandler.sendNotification(input);
+        Integer invocations = Limits.getEmailInvocations();
+        
+        Test.stopTest();
+        
+        
+        system.assertEquals(3, invocations, 'An email should be sent');
+        
+    }
+    
+    @istest
+    static void testNotificationMethodqueue()
+    {
+        
+        Test.startTest(); 
+        
+        List<Group> groupRec = [SELECT Id,Name,Email from Group where Name = 'Credit Team'];
+        
+        List<Opportunity> oppty = new List<Opportunity>([SELECT Id,OpportunityTypes__c,StageName from Opportunity where Name = 'Opportunity1']);
+        
+        List<TA_NotificationHandler.FlowInputs> input = new List<TA_NotificationHandler.FlowInputs>();
+        
+        TA_NotificationHandler.FlowInputs request = new TA_NotificationHandler.FlowInputs();
+        
+        request.whatid = oppty[0].Id;
+        request.bellTitle = 'Test';
+        request.bellBody = 'Test Body';
+        request.contextType = 'PREQUAL_SUBMITTED';
+        request.ownerid = groupRec[0].Id;
+        request.ownerType = 'QUEUE';
+        input.add(request);
+        
+        TA_NotificationHandler.sendNotification(input);
+        Integer invocations = Limits.getEmailInvocations();
+        
+        
+        Test.stopTest();
+        system.assertEquals(1, invocations, 'An email should be sent');
+    }
+    
+    
+    
+}
